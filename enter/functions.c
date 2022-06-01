@@ -58,6 +58,11 @@
  */
 static void replace_part(struct EnterState *state, size_t from, const char *buf)
 {
+  {
+    char str[256] = { 0 };
+    mutt_mb_wcstombs(str, sizeof(str), state->wbuf, state->lastchar);
+    mutt_debug(LL_DEBUG1, "BEFORE: >>%s<< (%ld)\n", str, from);
+  }
   /* Save the suffix */
   size_t savelen = state->lastchar - state->curpos;
   wchar_t *savebuf = NULL;
@@ -74,11 +79,7 @@ static void replace_part(struct EnterState *state, size_t from, const char *buf)
   if (savelen)
   {
     /* Make space for suffix */
-    if (state->curpos + savelen > state->wbuflen)
-    {
-      state->wbuflen = state->curpos + savelen;
-      mutt_mem_realloc(&state->wbuf, state->wbuflen * sizeof(wchar_t));
-    }
+    enter_state_resize(state, state->curpos + savelen);
 
     /* Restore suffix */
     memcpy(state->wbuf + state->curpos, savebuf, savelen * sizeof(wchar_t));
@@ -86,6 +87,11 @@ static void replace_part(struct EnterState *state, size_t from, const char *buf)
   }
 
   state->lastchar = state->curpos + savelen;
+  {
+    char str[256] = { 0 };
+    mutt_mb_wcstombs(str, sizeof(str), state->wbuf, state->lastchar);
+    mutt_debug(LL_DEBUG1, "AFTER:  >>%s<<\n", str);
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -97,17 +103,18 @@ static void replace_part(struct EnterState *state, size_t from, const char *buf)
  */
 static int complete_file_simple(struct EnterWindowData *wdata)
 {
+  const wchar_t *wbuf = editor_buffer_get_buffer(wdata->state);
+  const int curpos = editor_buffer_get_cursor(wdata->state);
+  const int lastchar = editor_buffer_get_lastchar(wdata->state);
+
   int rc = FR_SUCCESS;
   size_t i;
-  for (i = wdata->state->curpos;
-       (i > 0) && !mutt_mb_is_shell_char(wdata->state->wbuf[i - 1]); i--)
+  for (i = curpos; (i > 0) && !mutt_mb_is_shell_char(wbuf[i - 1]); i--)
   {
   }
-  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wdata->state->wbuf + i,
-                   wdata->state->curpos - i);
-  if (wdata->tempbuf && (wdata->templen == (wdata->state->lastchar - i)) &&
-      (memcmp(wdata->tempbuf, wdata->state->wbuf + i,
-              (wdata->state->lastchar - i) * sizeof(wchar_t)) == 0))
+  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wbuf + i, curpos - i);
+  if (wdata->tempbuf && (wdata->templen == (lastchar - i)) &&
+      (memcmp(wdata->tempbuf, wbuf + i, (lastchar - i) * sizeof(wchar_t)) == 0))
   {
     mutt_select_file(wdata->buf, wdata->buflen, MUTT_SEL_NO_FLAGS, wdata->m, NULL, NULL);
     if (wdata->buf[0] != '\0')
@@ -119,7 +126,7 @@ static int complete_file_simple(struct EnterWindowData *wdata)
   {
     wdata->templen = wdata->state->lastchar - i;
     mutt_mem_realloc(&wdata->tempbuf, wdata->templen * sizeof(wchar_t));
-    memcpy(wdata->tempbuf, wdata->state->wbuf + i, wdata->templen * sizeof(wchar_t));
+    memcpy(wdata->tempbuf, wbuf + i, wdata->templen * sizeof(wchar_t));
   }
   else
   {
@@ -137,18 +144,19 @@ static int complete_file_simple(struct EnterWindowData *wdata)
  */
 static int complete_alias_complete(struct EnterWindowData *wdata)
 {
+  const wchar_t *wbuf = editor_buffer_get_buffer(wdata->state);
+  const int curpos = editor_buffer_get_cursor(wdata->state);
+  const int lastchar = editor_buffer_get_lastchar(wdata->state);
+
   /* invoke the alias-menu to get more addresses */
   size_t i;
-  for (i = wdata->state->curpos; (i > 0) && (wdata->state->wbuf[i - 1] != ',') &&
-                                 (wdata->state->wbuf[i - 1] != ':');
-       i--)
-  {
-  }
-  for (; (i < wdata->state->lastchar) && (wdata->state->wbuf[i] == ' '); i++)
+  for (i = curpos; (i > 0) && (wbuf[i - 1] != ',') && (wbuf[i - 1] != ':'); i--)
     ; // do nothing
 
-  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wdata->state->wbuf + i,
-                   wdata->state->curpos - i);
+  for (; (i < lastchar) && (wbuf[i] == ' '); i++)
+    ; // do nothing
+
+  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wbuf + i, curpos - i);
   int rc = alias_complete(wdata->buf, wdata->buflen, NeoMutt->sub);
   replace_part(wdata->state, i, wdata->buf);
   if (rc != 1)
@@ -166,17 +174,18 @@ static int complete_alias_complete(struct EnterWindowData *wdata)
  */
 static int complete_label(struct EnterWindowData *wdata)
 {
+  const wchar_t *wbuf = editor_buffer_get_buffer(wdata->state);
+  const int curpos = editor_buffer_get_cursor(wdata->state);
+  const int lastchar = editor_buffer_get_lastchar(wdata->state);
+
   size_t i;
-  for (i = wdata->state->curpos; (i > 0) && (wdata->state->wbuf[i - 1] != ',') &&
-                                 (wdata->state->wbuf[i - 1] != ':');
-       i--)
-  {
-  }
-  for (; (i < wdata->state->lastchar) && (wdata->state->wbuf[i] == ' '); i++)
+  for (i = curpos; (i > 0) && (wbuf[i - 1] != ',') && (wbuf[i - 1] != ':'); i--)
     ; // do nothing
 
-  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wdata->state->wbuf + i,
-                   wdata->state->curpos - i);
+  for (; (i < lastchar) && (wbuf[i] == ' '); i++)
+    ; // do nothing
+
+  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wbuf + i, curpos - i);
   int rc = mutt_label_complete(wdata->buf, wdata->buflen, wdata->tabs);
   replace_part(wdata->state, i, wdata->buf);
   if (rc != 1)
@@ -192,15 +201,18 @@ static int complete_label(struct EnterWindowData *wdata)
  */
 static int complete_pattern(struct EnterWindowData *wdata)
 {
-  size_t i = wdata->state->curpos;
-  if (i && (wdata->state->wbuf[i - 1] == '~'))
+  const wchar_t *wbuf = editor_buffer_get_buffer(wdata->state);
+  const int curpos = editor_buffer_get_cursor(wdata->state);
+
+  size_t i = curpos;
+  if (i && (wbuf[i - 1] == '~'))
   {
     if (dlg_select_pattern(wdata->buf, wdata->buflen))
       replace_part(wdata->state, i - 1, wdata->buf);
     return FR_CONTINUE;
   }
 
-  for (; (i > 0) && (wdata->state->wbuf[i - 1] != '~'); i--)
+  for (; (i > 0) && (wbuf[i - 1] != '~'); i--)
     ; // do nothing
 
   if ((i > 0) && (i < wdata->state->curpos) &&
@@ -231,18 +243,20 @@ static int complete_pattern(struct EnterWindowData *wdata)
  */
 static int complete_alias_query(struct EnterWindowData *wdata)
 {
-  size_t i = wdata->state->curpos;
+  const wchar_t *wbuf = editor_buffer_get_buffer(wdata->state);
+  const int curpos = editor_buffer_get_cursor(wdata->state);
+
+  size_t i = curpos;
   if (i != 0)
   {
-    for (; (i > 0) && (wdata->state->wbuf[i - 1] != ','); i--)
+    for (; (i > 0) && (wbuf[i - 1] != ','); i--)
       ; // do nothing
 
-    for (; (i < wdata->state->curpos) && (wdata->state->wbuf[i] == ' '); i++)
+    for (; (i < curpos) && (wbuf[i] == ' '); i++)
       ; // do nothing
   }
 
-  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wdata->state->wbuf + i,
-                   wdata->state->curpos - i);
+  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wbuf + i, curpos - i);
   struct Buffer *tmp = mutt_buffer_pool_get();
   mutt_buffer_strcpy(tmp, wdata->buf);
   query_complete(tmp, NeoMutt->sub);
@@ -260,8 +274,11 @@ static int complete_alias_query(struct EnterWindowData *wdata)
  */
 static int complete_command(struct EnterWindowData *wdata)
 {
+  const wchar_t *wbuf = editor_buffer_get_buffer(wdata->state);
+  const int curpos = editor_buffer_get_cursor(wdata->state);
+
   int rc = FR_SUCCESS;
-  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wdata->state->wbuf, wdata->state->curpos);
+  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wbuf, curpos);
   size_t i = strlen(wdata->buf);
   if ((i != 0) && (wdata->buf[i - 1] == '=') &&
       (mutt_var_value_complete(wdata->buf, wdata->buflen, i) != 0))
@@ -284,14 +301,17 @@ static int complete_command(struct EnterWindowData *wdata)
  */
 static int complete_file_mbox(struct EnterWindowData *wdata)
 {
+  const wchar_t *wbuf = editor_buffer_get_buffer(wdata->state);
+  const int curpos = editor_buffer_get_cursor(wdata->state);
+  const int lastchar = editor_buffer_get_lastchar(wdata->state);
+
   int rc = FR_SUCCESS;
-  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wdata->state->wbuf, wdata->state->curpos);
+  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wbuf, curpos);
 
   /* see if the path has changed from the last time */
-  if ((!wdata->tempbuf && !wdata->state->lastchar) ||
-      (wdata->tempbuf && (wdata->templen == wdata->state->lastchar) &&
-       (memcmp(wdata->tempbuf, wdata->state->wbuf,
-               wdata->state->lastchar * sizeof(wchar_t)) == 0)))
+  if ((!wdata->tempbuf && !lastchar) ||
+      (wdata->tempbuf && (wdata->templen == lastchar) &&
+       (memcmp(wdata->tempbuf, wbuf, lastchar * sizeof(wchar_t)) == 0)))
   {
     mutt_select_file(wdata->buf, wdata->buflen,
                      ((wdata->flags & MUTT_COMP_FILE_MBOX) ? MUTT_SEL_FOLDER : MUTT_SEL_NO_FLAGS) |
@@ -312,9 +332,9 @@ static int complete_file_mbox(struct EnterWindowData *wdata)
 
   if (mutt_complete(wdata->buf, wdata->buflen) == 0)
   {
-    wdata->templen = wdata->state->lastchar;
+    wdata->templen = lastchar;
     mutt_mem_realloc(&wdata->tempbuf, wdata->templen * sizeof(wchar_t));
-    memcpy(wdata->tempbuf, wdata->state->wbuf, wdata->templen * sizeof(wchar_t));
+    memcpy(wdata->tempbuf, wbuf, wdata->templen * sizeof(wchar_t));
   }
   else
   {
@@ -332,8 +352,11 @@ static int complete_file_mbox(struct EnterWindowData *wdata)
  */
 static int complete_nm_query(struct EnterWindowData *wdata)
 {
+  const wchar_t *wbuf = editor_buffer_get_buffer(wdata->state);
+  const int curpos = editor_buffer_get_cursor(wdata->state);
+
   int rc = FR_SUCCESS;
-  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wdata->state->wbuf, wdata->state->curpos);
+  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wbuf, curpos);
   size_t len = strlen(wdata->buf);
   if (!mutt_nm_query_complete(wdata->buf, wdata->buflen, len, wdata->tabs))
     rc = FR_ERROR;
@@ -349,8 +372,11 @@ static int complete_nm_query(struct EnterWindowData *wdata)
  */
 static int complete_nm_tag(struct EnterWindowData *wdata)
 {
+  const wchar_t *wbuf = editor_buffer_get_buffer(wdata->state);
+  const int curpos = editor_buffer_get_cursor(wdata->state);
+
   int rc = FR_SUCCESS;
-  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wdata->state->wbuf, wdata->state->curpos);
+  mutt_mb_wcstombs(wdata->buf, wdata->buflen, wbuf, curpos);
   if (!mutt_nm_tag_complete(wdata->buf, wdata->buflen, wdata->tabs))
     rc = FR_ERROR;
 
