@@ -50,6 +50,8 @@
 #include "state.h" // IWYU pragma: keep
 #include "wdata.h"
 
+const char *km_keyname(int c);
+
 /// Help Bar for the Command Line Editor
 static const struct Mapping EditorHelp[] = {
   // clang-format off
@@ -198,7 +200,12 @@ bool self_insert(struct EnterWindowData *wdata, int ch)
 
   /* quietly ignore all other function keys */
   if (ch & ~0xff)
+  {
+    const char *str = km_keyname(ch);
+    for (size_t i = 0; str[i]; i++)
+      self_insert(wdata, str[i]);
     return false;
+  }
 
   /* gather the octets into a wide character */
   {
@@ -216,32 +223,14 @@ bool self_insert(struct EnterWindowData *wdata, int ch)
   if (wdata->flags & MUTT_COMP_CLEAR)
   {
     wdata->flags &= ~MUTT_COMP_CLEAR;
-    if (IsWPrint(wc)) /* why? */
-    {
-      wdata->state->curpos = 0;
-      wdata->state->lastchar = 0;
-    }
+    wdata->state->curpos = 0;
+    wdata->state->lastchar = 0;
   }
 
   if ((wc == '\r') || (wc == '\n'))
-  {
-    /* Convert from wide characters */
-    mutt_mb_wcstombs(wdata->buf, wdata->buflen, wdata->state->wbuf, wdata->state->lastchar);
-    if (!wdata->pass)
-      mutt_hist_add(wdata->hclass, wdata->buf, true);
-
-    if (wdata->multiple)
-    {
-      char **tfiles = NULL;
-      *wdata->numfiles = 1;
-      tfiles = mutt_mem_calloc(*wdata->numfiles, sizeof(char *));
-      mutt_expand_path(wdata->buf, wdata->buflen);
-      tfiles[0] = mutt_str_dup(wdata->buf);
-      *wdata->files = tfiles;
-    }
     return true;
-  }
-  else if (wc && ((wc < ' ') || IsWPrint(wc))) /* why? */
+
+  if ((wc != L'\0') && ((wc < ' ') || IsWPrint(wc))) /* why? */
   {
     enter_state_resize(wdata->state, wdata->state->lastchar);
 
@@ -348,11 +337,10 @@ int mutt_buffer_get_field(const char *field, struct Buffer *buf, CompletionFlags
       mutt_debug(LL_DEBUG1, "Got char %c (0x%02x)\n", event.ch, event.ch);
       if (self_insert(&wdata, event.ch))
         break;
+      continue;
     }
-    else
-    {
-      mutt_debug(LL_DEBUG1, "Got op %s (%d)\n", opcodes_get_name(event.op), event.op);
-    }
+
+    mutt_debug(LL_DEBUG1, "Got op %s (%d)\n", opcodes_get_name(event.op), event.op);
 
     if ((event.op != OP_EDITOR_COMPLETE) && (event.op != OP_EDITOR_COMPLETE_QUERY))
       wdata.tabs = 0;
@@ -380,6 +368,21 @@ int mutt_buffer_get_field(const char *field, struct Buffer *buf, CompletionFlags
     }
   } while (!wdata.done);
   // ---------------------------------------------------------------------------
+
+  /* Convert from wide characters */
+  mutt_mb_wcstombs(wdata.buf, wdata.buflen, wdata.state->wbuf, wdata.state->lastchar);
+  if (!wdata.pass)
+    mutt_hist_add(wdata.hclass, wdata.buf, true);
+
+  if (wdata.multiple)
+  {
+    char **tfiles = NULL;
+    *wdata.numfiles = 1;
+    tfiles = mutt_mem_calloc(*wdata.numfiles, sizeof(char *));
+    mutt_expand_path(wdata.buf, wdata.buflen);
+    tfiles[0] = mutt_str_dup(wdata.buf);
+    *wdata.files = tfiles;
+  }
 
   msgcont_pop_window();
   mutt_window_free(&win);

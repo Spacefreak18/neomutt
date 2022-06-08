@@ -818,7 +818,7 @@ static void create_bindings(const struct MenuOpSeq *map, enum MenuType mtype)
  *
  * @note This returns a pointer to a static buffer.
  */
-static const char *km_keyname(int c)
+const char *km_keyname(int c)
 {
   static char buf[35];
 
