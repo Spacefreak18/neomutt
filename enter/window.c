@@ -198,26 +198,24 @@ bool self_insert(struct EnterWindowData *wdata, int ch)
   wdata->tabs = 0;
   wchar_t wc = 0;
 
-  /* quietly ignore all other function keys */
   if (ch & ~0xff)
   {
+    // Expand an unhandled function key to its name
     const char *str = km_keyname(ch);
     for (size_t i = 0; str[i]; i++)
       self_insert(wdata, str[i]);
     return false;
   }
 
-  /* gather the octets into a wide character */
+  // gather the bytes into a wide character
+  char c = ch;
+  size_t k = mbrtowc(&wc, &c, 1, &wdata->state->mbstate);
+  if (k == (size_t) (-2))
+    return false;
+  else if ((k != 0) && (k != 1))
   {
-    char c = ch;
-    size_t k = mbrtowc(&wc, &c, 1, &wdata->state->mbstate);
-    if (k == (size_t) (-2))
-      return false;
-    else if ((k != 0) && (k != 1))
-    {
-      memset(&wdata->state->mbstate, 0, sizeof(wdata->state->mbstate));
-      return false;
-    }
+    memset(&wdata->state->mbstate, 0, sizeof(wdata->state->mbstate));
+    return false;
   }
 
   if (wdata->flags & MUTT_COMP_CLEAR)

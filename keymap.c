@@ -1641,6 +1641,7 @@ void mutt_what_key(void)
   if (!win)
     return;
 
+  mutt_clear_error();
   mutt_curses_set_normal_backed_color_by_id(MT_COLOR_PROMPT);
   mutt_window_mvprintw(win, 0, 0, _("Enter keys (%s to abort): "), km_keyname(AbortKey));
   mutt_curses_set_color_by_id(MT_COLOR_NORMAL);
