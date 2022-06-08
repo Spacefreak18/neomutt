@@ -57,6 +57,7 @@ const wchar_t *editor_buffer_get_buffer  (struct EnterState *es);
 size_t         editor_buffer_get_cursor  (struct EnterState *es);
 size_t         editor_buffer_get_lastchar(struct EnterState *es);
 bool           editor_buffer_is_empty    (struct EnterState *es);
+void           editor_buffer_replace_part(struct EnterState *es, size_t from, const char *buf);
 int            editor_buffer_set         (struct EnterState *es, const char *str);
 void           editor_buffer_set_cursor  (struct EnterState *es, size_t pos);
 

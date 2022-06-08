@@ -49,52 +49,9 @@
 #include "protos.h"
 #include "state.h"
 #include "wdata.h"
-
-/**
- * replace_part - Search and replace on a buffer
- * @param state Current state of the input buffer
- * @param from  Starting point for the replacement
- * @param buf   Replacement string
- */
-static void replace_part(struct EnterState *state, size_t from, const char *buf)
-{
-  {
-    char str[256] = { 0 };
-    mutt_mb_wcstombs(str, sizeof(str), state->wbuf, state->lastchar);
-    mutt_debug(LL_DEBUG1, "BEFORE: >>%s<< (%ld)\n", str, from);
-  }
-  /* Save the suffix */
-  size_t savelen = state->lastchar - state->curpos;
-  wchar_t *savebuf = NULL;
-
-  if (savelen)
-  {
-    savebuf = mutt_mem_calloc(savelen, sizeof(wchar_t));
-    memcpy(savebuf, state->wbuf + state->curpos, savelen * sizeof(wchar_t));
-  }
-
-  /* Convert to wide characters */
-  state->curpos = mutt_mb_mbstowcs(&state->wbuf, &state->wbuflen, from, buf);
-
-  if (savelen)
-  {
-    /* Make space for suffix */
-    enter_state_resize(state, state->curpos + savelen);
-
-    /* Restore suffix */
-    memcpy(state->wbuf + state->curpos, savebuf, savelen * sizeof(wchar_t));
-    FREE(&savebuf);
-  }
-
-  state->lastchar = state->curpos + savelen;
-  {
-    char str[256] = { 0 };
-    mutt_mb_wcstombs(str, sizeof(str), state->wbuf, state->lastchar);
-    mutt_debug(LL_DEBUG1, "AFTER:  >>%s<<\n", str);
-  }
-}
-
-// -----------------------------------------------------------------------------
+#ifdef USE_DEBUG_ENTER
+#include "debug.h"
+#endif
 
 /**
  * complete_file_simple - Complete a filename
@@ -118,7 +75,7 @@ static int complete_file_simple(struct EnterWindowData *wdata)
   {
     mutt_select_file(wdata->buf, wdata->buflen, MUTT_SEL_NO_FLAGS, wdata->m, NULL, NULL);
     if (wdata->buf[0] != '\0')
-      replace_part(wdata->state, i, wdata->buf);
+      editor_buffer_replace_part(wdata->state, i, wdata->buf);
     return FR_CONTINUE;
   }
 
@@ -133,7 +90,7 @@ static int complete_file_simple(struct EnterWindowData *wdata)
     rc = FR_ERROR;
   }
 
-  replace_part(wdata->state, i, wdata->buf);
+  editor_buffer_replace_part(wdata->state, i, wdata->buf);
   return rc;
 }
 
@@ -158,7 +115,7 @@ static int complete_alias_complete(struct EnterWindowData *wdata)
 
   mutt_mb_wcstombs(wdata->buf, wdata->buflen, wbuf + i, curpos - i);
   int rc = alias_complete(wdata->buf, wdata->buflen, NeoMutt->sub);
-  replace_part(wdata->state, i, wdata->buf);
+  editor_buffer_replace_part(wdata->state, i, wdata->buf);
   if (rc != 1)
   {
     return FR_CONTINUE;
@@ -187,7 +144,7 @@ static int complete_label(struct EnterWindowData *wdata)
 
   mutt_mb_wcstombs(wdata->buf, wdata->buflen, wbuf + i, curpos - i);
   int rc = mutt_label_complete(wdata->buf, wdata->buflen, wdata->tabs);
-  replace_part(wdata->state, i, wdata->buf);
+  editor_buffer_replace_part(wdata->state, i, wdata->buf);
   if (rc != 1)
     return FR_CONTINUE;
 
@@ -208,7 +165,7 @@ static int complete_pattern(struct EnterWindowData *wdata)
   if (i && (wbuf[i - 1] == '~'))
   {
     if (dlg_select_pattern(wdata->buf, wdata->buflen))
-      replace_part(wdata->state, i - 1, wdata->buf);
+      editor_buffer_replace_part(wdata->state, i - 1, wdata->buf);
     return FR_CONTINUE;
   }
 
@@ -222,7 +179,7 @@ static int complete_pattern(struct EnterWindowData *wdata)
     mutt_mb_wcstombs(wdata->buf, wdata->buflen, wdata->state->wbuf + i,
                      wdata->state->curpos - i);
     int rc = mutt_label_complete(wdata->buf, wdata->buflen, wdata->tabs);
-    replace_part(wdata->state, i, wdata->buf);
+    editor_buffer_replace_part(wdata->state, i, wdata->buf);
     if (rc != 1)
     {
       return FR_CONTINUE;
@@ -262,7 +219,7 @@ static int complete_alias_query(struct EnterWindowData *wdata)
   query_complete(tmp, NeoMutt->sub);
   mutt_str_copy(wdata->buf, mutt_buffer_string(tmp), wdata->buflen);
   mutt_buffer_pool_release(&tmp);
-  replace_part(wdata->state, i, wdata->buf);
+  editor_buffer_replace_part(wdata->state, i, wdata->buf);
 
   return FR_CONTINUE;
 }
@@ -290,7 +247,7 @@ static int complete_command(struct EnterWindowData *wdata)
     rc = FR_ERROR;
   }
 
-  replace_part(wdata->state, 0, wdata->buf);
+  editor_buffer_replace_part(wdata->state, 0, wdata->buf);
   return rc;
 }
 
@@ -340,7 +297,7 @@ static int complete_file_mbox(struct EnterWindowData *wdata)
   {
     return FR_ERROR; // let the user know that nothing matched
   }
-  replace_part(wdata->state, 0, wdata->buf);
+  editor_buffer_replace_part(wdata->state, 0, wdata->buf);
   return rc;
 }
 
@@ -361,7 +318,7 @@ static int complete_nm_query(struct EnterWindowData *wdata)
   if (!mutt_nm_query_complete(wdata->buf, wdata->buflen, len, wdata->tabs))
     rc = FR_ERROR;
 
-  replace_part(wdata->state, 0, wdata->buf);
+  editor_buffer_replace_part(wdata->state, 0, wdata->buf);
   return rc;
 }
 
@@ -380,7 +337,7 @@ static int complete_nm_tag(struct EnterWindowData *wdata)
   if (!mutt_nm_tag_complete(wdata->buf, wdata->buflen, wdata->tabs))
     rc = FR_ERROR;
 
-  replace_part(wdata->state, 0, wdata->buf);
+  editor_buffer_replace_part(wdata->state, 0, wdata->buf);
   return rc;
 }
 #endif
@@ -441,7 +398,7 @@ static int op_editor_history_down(struct EnterWindowData *wdata, int op)
     mutt_mb_wcstombs(wdata->buf, wdata->buflen, wdata->state->wbuf, wdata->state->curpos);
     mutt_hist_save_scratch(wdata->hclass, wdata->buf);
   }
-  replace_part(wdata->state, 0, mutt_hist_next(wdata->hclass));
+  editor_buffer_replace_part(wdata->state, 0, mutt_hist_next(wdata->hclass));
   wdata->redraw = ENTER_REDRAW_INIT;
   return FR_SUCCESS;
 }
@@ -454,7 +411,7 @@ static int op_editor_history_search(struct EnterWindowData *wdata, int op)
   wdata->state->curpos = wdata->state->lastchar;
   mutt_mb_wcstombs(wdata->buf, wdata->buflen, wdata->state->wbuf, wdata->state->curpos);
   mutt_hist_complete(wdata->buf, wdata->buflen, wdata->hclass);
-  replace_part(wdata->state, 0, wdata->buf);
+  editor_buffer_replace_part(wdata->state, 0, wdata->buf);
   return FR_CONTINUE;
 }
 
@@ -469,7 +426,7 @@ static int op_editor_history_up(struct EnterWindowData *wdata, int op)
     mutt_mb_wcstombs(wdata->buf, wdata->buflen, wdata->state->wbuf, wdata->state->curpos);
     mutt_hist_save_scratch(wdata->hclass, wdata->buf);
   }
-  replace_part(wdata->state, 0, mutt_hist_prev(wdata->hclass));
+  editor_buffer_replace_part(wdata->state, 0, mutt_hist_prev(wdata->hclass));
   wdata->redraw = ENTER_REDRAW_INIT;
   return FR_SUCCESS;
 }

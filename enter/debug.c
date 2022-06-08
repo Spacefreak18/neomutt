@@ -87,3 +87,16 @@ void enter_dump_buffer(const struct EnterState *es)
 
   mutt_buffer_pool_release(&hex);
 }
+
+/**
+ * enter_dump_string - XXX
+ */
+void enter_dump_string(const struct EnterState *es, const char *label)
+{
+  if (!es)
+    return;
+
+  char str[1024] = { 0 };
+  mutt_mb_wcstombs(str, sizeof(str), es->wbuf, es->lastchar);
+  enter_debug(LL_DEBUG1, "%s: >>%s<<\n", str);
+}

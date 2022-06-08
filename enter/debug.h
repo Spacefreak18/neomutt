@@ -28,13 +28,15 @@
 
 #ifdef USE_DEBUG_ENTER
 
-int enter_debug(enum LogLevel level, const char *format, ...);
+int  enter_debug      (enum LogLevel level, const char *format, ...);
 void enter_dump_buffer(const struct EnterState *es);
+void enter_dump_string(const struct EnterState *es, const char *label);
 
 #else
 
-static inline int enter_debug(enum LogLevel level, const char *format, ...) { return 0; }
+static inline int  enter_debug      (enum LogLevel level, const char *format, ...) { return 0; }
 static inline void enter_dump_buffer(const struct EnterState *es) { };
+static inline void enter_dump_string(const struct EnterState *es, const char *label) { };
 
 #endif
 

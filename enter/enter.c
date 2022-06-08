@@ -533,3 +533,42 @@ int editor_buffer_set(struct EnterState *es, const char *str)
   notify_send(es->notify, NT_ENTER, NT_ENTER_CURSOR | NT_ENTER_TEXT, NULL);
   return es->lastchar;
 }
+
+/**
+ * editor_buffer_replace_part - Search and replace on a buffer
+ * @param es   Current state of the input buffer
+ * @param from Starting point for the replacement
+ * @param buf  Replacement string
+ */
+void editor_buffer_replace_part(struct EnterState *es, size_t from, const char *buf)
+{
+  if (!es || !buf || (from >= es->lastchar))
+    return;
+
+  enter_dump_string(es, "before");
+
+  /* Save the suffix */
+  size_t savelen = es->lastchar - es->curpos;
+  wchar_t *savebuf = NULL;
+
+  if (savelen != 0)
+  {
+    savebuf = mutt_mem_calloc(savelen + 1, sizeof(wchar_t));
+    memcpy(savebuf, es->wbuf + es->curpos, savelen * sizeof(wchar_t));
+  }
+
+  /* Convert to wide characters */
+  es->curpos = mutt_mb_mbstowcs(&es->wbuf, &es->wbuflen, from, buf);
+
+  if (savelen != 0)
+  {
+    /* Make space for suffix */
+    enter_state_resize(es, es->curpos + savelen);
+
+    /* Restore suffix */
+    memcpy(es->wbuf + es->curpos, savebuf, savelen * sizeof(wchar_t));
+    FREE(&savebuf);
+  }
+
+  enter_dump_string(es, "after");
+}
