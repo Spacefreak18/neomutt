@@ -27,16 +27,14 @@
  */
 
 #include "config.h"
+#include "core/lib.h"
+#include "debug.h"
+#include "enter.h"
+#include "mutt/lib.h"
+#include "state.h"
 #include <string.h>
 #include <wchar.h>
 #include <wctype.h>
-#include "mutt/lib.h"
-#include "core/lib.h"
-#include "enter.h"
-#include "state.h"
-#ifdef USE_DEBUG_ENTER
-#include "debug.h"
-#endif
 
 /// combining mark / non-spacing character
 #define COMB_CHAR(wc) (IsWPrint(wc) && (wcwidth(wc) == 0))
@@ -440,6 +438,39 @@ int editor_transpose_chars(struct EnterState *es)
 // -----------------------------------------------------------------------------
 
 /**
+ * inner_self_insert - Insert a normal character
+ */
+enum InsertResult inner_self_insert(struct EnterState *es, int ch)
+{
+  if (!es)
+    return IR_ERROR;
+
+  // Gather the bytes into a wide character
+  char c = ch;
+  wchar_t wc = 0;
+  size_t k = mbrtowc(&wc, &c, 1, &es->mbstate);
+  if (k == (size_t) (-2))
+    return IR_PARTIAL;
+  else if ((k != 0) && (k != 1))
+  {
+    memset(&es->mbstate, 0, sizeof(es->mbstate));
+    return IR_ERROR;
+  }
+
+  if ((wc == L'\0') || !IsWPrint(wc))
+    return IR_ERROR;
+
+  enter_state_resize(es, es->lastchar);
+
+  memmove(es->wbuf + es->curpos + 1, es->wbuf + es->curpos,
+          (es->lastchar - es->curpos) * sizeof(wchar_t));
+  es->wbuf[es->curpos++] = wc;
+  es->lastchar++;
+
+  return IR_GOOD;
+}
+
+/**
  * editor_buffer_is_empty - Is the Enter buffer empty?
  * @param es State of the Enter buffer
  * @retval true If buffer is empty
@@ -571,4 +602,5 @@ void editor_buffer_replace_part(struct EnterState *es, size_t from, const char *
   }
 
   enter_dump_string(es, "after");
+  notify_send(es->notify, NT_ENTER, NT_ENTER_CURSOR | NT_ENTER_TEXT, NULL);
 }

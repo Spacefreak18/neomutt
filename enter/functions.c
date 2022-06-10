@@ -39,6 +39,7 @@
 #include "browser/lib.h"
 #include "history/lib.h"
 #include "pattern/lib.h"
+#include "debug.h"
 #include "enter.h"
 #include "init.h"
 #include "keymap.h"
@@ -49,9 +50,6 @@
 #include "protos.h"
 #include "state.h"
 #include "wdata.h"
-#ifdef USE_DEBUG_ENTER
-#include "debug.h"
-#endif
 
 /**
  * complete_file_simple - Complete a filename
@@ -619,7 +617,7 @@ static int op_editor_quote_char(struct EnterWindowData *wdata, int op)
   } while (event.op == OP_TIMEOUT);
   if (event.op != OP_ABORT)
   {
-    if (self_insert(wdata, event.ch))
+    if (self_insert(wdata, event.ch) == IR_ENTER)
     {
       wdata->done = true;
       return FR_SUCCESS;

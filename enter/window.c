@@ -40,6 +40,7 @@
 #include "history/lib.h"
 #include "menu/lib.h"
 #include "color/color.h"
+#include "debug.h"
 #include "enter.h"
 #include "functions.h"
 #include "keymap.h"
@@ -184,67 +185,39 @@ static int enter_window_repaint(struct MuttWindow *win)
   return 0;
 }
 
+
 /**
  * self_insert - Insert a normal character
  * @param wdata Enter window data
  * @param ch    Raw keypress
  * @retval true If done (enter pressed)
  */
-bool self_insert(struct EnterWindowData *wdata, int ch)
+enum InsertResult self_insert(struct EnterWindowData *wdata, int ch)
 {
   if (!wdata)
-    return true;
+    return IR_ERROR;
 
   wdata->tabs = 0;
-  wchar_t wc = 0;
+
+  if ((ch == '\r') || (ch == '\n'))
+    return IR_ENTER;
 
   if (ch & ~0xff)
   {
     // Expand an unhandled function key to its name
     const char *str = km_keyname(ch);
+    if (!str)
+      return IR_ERROR;
     for (size_t i = 0; str[i]; i++)
-      self_insert(wdata, str[i]);
-    return false;
+    {
+      enum InsertResult ir = inner_self_insert(wdata->state, str[i]);
+      if (ir != IR_GOOD)
+        return ir;
+    }
+    return IR_GOOD;
   }
 
-  // gather the bytes into a wide character
-  char c = ch;
-  size_t k = mbrtowc(&wc, &c, 1, &wdata->state->mbstate);
-  if (k == (size_t) (-2))
-    return false;
-  else if ((k != 0) && (k != 1))
-  {
-    memset(&wdata->state->mbstate, 0, sizeof(wdata->state->mbstate));
-    return false;
-  }
-
-  if (wdata->flags & MUTT_COMP_CLEAR)
-  {
-    wdata->flags &= ~MUTT_COMP_CLEAR;
-    wdata->state->curpos = 0;
-    wdata->state->lastchar = 0;
-  }
-
-  if ((wc == '\r') || (wc == '\n'))
-    return true;
-
-  if ((wc != L'\0') && ((wc < ' ') || IsWPrint(wc))) /* why? */
-  {
-    enter_state_resize(wdata->state, wdata->state->lastchar);
-
-    memmove(wdata->state->wbuf + wdata->state->curpos + 1,
-            wdata->state->wbuf + wdata->state->curpos,
-            (wdata->state->lastchar - wdata->state->curpos) * sizeof(wchar_t));
-    wdata->state->wbuf[wdata->state->curpos++] = wc;
-    wdata->state->lastchar++;
-  }
-  else
-  {
-    mutt_flushinp();
-    mutt_beep(false);
-  }
-
-  return false;
+  return inner_self_insert(wdata->state, ch);
 }
 
 /**
@@ -332,8 +305,13 @@ int mutt_buffer_get_field(const char *field, struct Buffer *buf, CompletionFlags
 
     if (event.op == OP_NULL)
     {
+      if (wdata.flags & MUTT_COMP_CLEAR)
+      {
+        wdata.flags &= ~MUTT_COMP_CLEAR;
+        editor_kill_whole_line(wdata.state);
+      }
       mutt_debug(LL_DEBUG1, "Got char %c (0x%02x)\n", event.ch, event.ch);
-      if (self_insert(&wdata, event.ch))
+      if (self_insert(&wdata, event.ch) == IR_ENTER)
         break;
       continue;
     }
@@ -348,6 +326,11 @@ int mutt_buffer_get_field(const char *field, struct Buffer *buf, CompletionFlags
     switch (rc_disp)
     {
       case FR_NO_ACTION:
+        if (wdata.flags & MUTT_COMP_CLEAR)
+        {
+          wdata.flags &= ~MUTT_COMP_CLEAR;
+          editor_kill_whole_line(wdata.state);
+        }
         if (self_insert(&wdata, event.ch))
           wdata.done = true;
         break;

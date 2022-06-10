@@ -34,6 +34,17 @@ typedef uint8_t NotifyEnter;          ///< Flags, e.g. #NT_ENTER_CURSOR
 #define NT_ENTER_VIEW       (1 << 2)  ///< View has changed
 
 /**
+ * enum InsertResult - Result of trying to insert a character
+ */
+enum InsertResult
+{
+  IR_GOOD,       ///< Character inserted
+  IR_PARTIAL,    ///< Incomplete multi-byte character
+  IR_ERROR,      ///< Error occurred
+  IR_ENTER,      ///< Enter/Return entered
+};
+
+/**
  * struct EnterState - Keep our place when entering a string
  */
 struct EnterState
