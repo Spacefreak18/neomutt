@@ -601,8 +601,8 @@ void editor_buffer_replace_part(struct EnterState *es, size_t from, const char *
     FREE(&savebuf);
   }
 
-  es->curpos = es->curpos + savelen;
-  es->lastchar = es->curpos;
+  // es->curpos = es->curpos + savelen;
+  es->lastchar = es->curpos + save_len;
 
   enter_dump_string(es, "after");
   notify_send(es->notify, NT_ENTER, NT_ENTER_CURSOR | NT_ENTER_TEXT, NULL);
