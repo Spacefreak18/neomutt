@@ -573,7 +573,7 @@ int editor_buffer_set(struct EnterState *es, const char *str)
  */
 void editor_buffer_replace_part(struct EnterState *es, size_t from, const char *buf)
 {
-  if (!es || !buf || (from >= es->lastchar))
+  if (!es || !buf) //QWQ || (from >= es->lastchar))
     return;
 
   enter_dump_string(es, "before");
@@ -600,6 +600,9 @@ void editor_buffer_replace_part(struct EnterState *es, size_t from, const char *
     memcpy(es->wbuf + es->curpos, savebuf, savelen * sizeof(wchar_t));
     FREE(&savebuf);
   }
+
+  es->curpos = es->curpos + savelen;
+  es->lastchar = es->curpos;
 
   enter_dump_string(es, "after");
   notify_send(es->notify, NT_ENTER, NT_ENTER_CURSOR | NT_ENTER_TEXT, NULL);

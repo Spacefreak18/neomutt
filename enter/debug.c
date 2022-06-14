@@ -98,5 +98,5 @@ void enter_dump_string(const struct EnterState *es, const char *label)
 
   char str[1024] = { 0 };
   mutt_mb_wcstombs(str, sizeof(str), es->wbuf, es->lastchar);
-  enter_debug(LL_DEBUG1, "%s: >>%s<<\n", str);
+  enter_debug(LL_DEBUG1, "%p: >>%s<<\n", es, str);
 }
