@@ -467,6 +467,7 @@ enum InsertResult inner_self_insert(struct EnterState *es, int ch)
   es->wbuf[es->curpos++] = wc;
   es->lastchar++;
 
+  notify_send(es->notify, NT_ENTER, NT_ENTER_CURSOR | NT_ENTER_TEXT, NULL);
   return IR_GOOD;
 }
 
@@ -602,7 +603,7 @@ void editor_buffer_replace_part(struct EnterState *es, size_t from, const char *
   }
 
   // es->curpos = es->curpos + savelen;
-  es->lastchar = es->curpos + save_len;
+  es->lastchar = es->curpos + savelen;
 
   enter_dump_string(es, "after");
   notify_send(es->notify, NT_ENTER, NT_ENTER_CURSOR | NT_ENTER_TEXT, NULL);

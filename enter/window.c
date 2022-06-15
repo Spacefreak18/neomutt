@@ -95,7 +95,7 @@ static int enter_window_recalc(struct MuttWindow *win)
   if (!win || !win->wdata)
     return 0;
 
-  struct EnterWindowData *wdata = win->wdata;
+  // struct EnterWindowData *wdata = win->wdata;
 
   // if (SigWinch)
   // {
@@ -104,12 +104,6 @@ static int enter_window_recalc(struct MuttWindow *win)
   //   clearok(stdscr, true);
   //   window_redraw(NULL);
   // }
-  mutt_window_clearline(win, 0);
-  mutt_curses_set_normal_backed_color_by_id(MT_COLOR_PROMPT);
-  mutt_window_addstr(win, wdata->field);
-  mutt_curses_set_color_by_id(MT_COLOR_NORMAL);
-  mutt_refresh();
-  mutt_window_get_coords(win, &wdata->col, NULL);
 
   // if (wdata->state->wbuf)
   // {
@@ -140,6 +134,13 @@ static int enter_window_repaint(struct MuttWindow *win)
 
   struct EnterWindowData *wdata = win->wdata;
   struct EnterState *es = wdata->state;
+
+  mutt_window_clearline(win, 0);
+  mutt_curses_set_normal_backed_color_by_id(MT_COLOR_PROMPT);
+  mutt_window_addstr(win, wdata->field);
+  mutt_curses_set_color_by_id(MT_COLOR_NORMAL);
+  mutt_refresh();
+  mutt_window_get_coords(win, &wdata->col, NULL);
 
   if (!wdata->pass)
   {
@@ -185,6 +186,23 @@ static int enter_window_repaint(struct MuttWindow *win)
   return 0;
 }
 
+/**
+ * enter_state_observer - Notification that the Enter state has changed - Implements ::observer_t - @ingroup observer_api
+ */
+int enter_state_observer(struct NotifyCallback *nc)
+{
+  if ((nc->event_type != NT_ENTER) || !nc->global_data)
+    return -1;
+
+  struct MuttWindow *win = nc->global_data;
+
+  if (nc->event_subtype & NT_ENTER)
+    win->actions |= WA_RECALC;
+  else
+    win->actions |= WA_REPAINT;
+
+  return 0;
+}
 
 /**
  * self_insert - Insert a normal character
@@ -241,8 +259,6 @@ int mutt_buffer_get_field(const char *field, struct Buffer *buf, CompletionFlags
   win->repaint = enter_window_repaint;
   win->actions |= WA_RECALC;
 
-  msgcont_push_window(win);
-
   const bool old_oime = OptIgnoreMacroEvents;
   if (complete & MUTT_COMP_UNBUFFERED)
     OptIgnoreMacroEvents = true;
@@ -251,6 +267,16 @@ int mutt_buffer_get_field(const char *field, struct Buffer *buf, CompletionFlags
   int col = 0;
 
   struct EnterState *state = enter_state_new();
+
+  // clang-format off
+  struct EnterWindowData wdata = { buf->data, buf->dsize, col, complete,
+    multiple, m, files, numfiles, state, field, NULL, ENTER_REDRAW_NONE,
+    (complete & MUTT_COMP_PASS), 0, NULL, 0, 0, 0, false };
+  // clang-format on
+  win->wdata = &wdata;
+
+  notify_observer_add(state->notify, NT_ENTER, enter_state_observer, win);
+
   struct Notify *notify = enter_state_get_notify(state);
   notify_set_parent(notify, NeoMutt->notify);
 
@@ -264,13 +290,6 @@ int mutt_buffer_get_field(const char *field, struct Buffer *buf, CompletionFlags
   state->wbuflen = 0;
   state->lastchar = mutt_mb_mbstowcs(&state->wbuf, &state->wbuflen, 0, buf->data);
   state->curpos = state->lastchar;
-
-  // clang-format off
-  struct EnterWindowData wdata = { buf->data, buf->dsize, col, complete,
-    multiple, m, files, numfiles, state, field, ENTER_REDRAW_NONE,
-    (complete & MUTT_COMP_PASS), 0, NULL, 0, 0, 0, false };
-  // clang-format on
-  win->wdata = &wdata;
 
   if (wdata.flags & MUTT_COMP_FILE)
     wdata.hclass = HC_FILE;
@@ -287,11 +306,13 @@ int mutt_buffer_get_field(const char *field, struct Buffer *buf, CompletionFlags
   else
     wdata.hclass = HC_OTHER;
 
+  msgcont_push_window(win);
+
   // ---------------------------------------------------------------------------
   // Event Loop
   do
   {
-    window_invalidate_all();
+    // window_invalidate_all();
     window_redraw(NULL);
     struct KeyEvent event = km_dokey_event(MENU_EDITOR);
     if (event.op == OP_TIMEOUT)
@@ -343,6 +364,9 @@ int mutt_buffer_get_field(const char *field, struct Buffer *buf, CompletionFlags
         break;
 
       case FR_UNKNOWN:
+        rc_disp = global_function_dispatcher(win, event.op);
+        break;
+
       case FR_ERROR:
       default:
         mutt_beep(false);
