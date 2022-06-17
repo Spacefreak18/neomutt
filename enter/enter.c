@@ -466,6 +466,8 @@ enum InsertResult inner_self_insert(struct EnterState *es, int ch)
           (es->lastchar - es->curpos) * sizeof(wchar_t));
   es->wbuf[es->curpos++] = wc;
   es->lastchar++;
+  es->wbuf[es->lastchar] = L'\0';
+  enter_dump_buffer(es);
 
   notify_send(es->notify, NT_ENTER, NT_ENTER_CURSOR | NT_ENTER_TEXT, NULL);
   return IR_GOOD;

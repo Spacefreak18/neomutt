@@ -65,25 +65,33 @@ void enter_dump_buffer(const struct EnterState *es)
   enter_debug(LL_DEBUG1, "buf: %p, len: (%ld c, %ldb), cur: %ld, last: %ld\n", es->wbuf,
               es->wbuflen, es->wbuflen * sizeof(wchar_t), es->curpos, es->lastchar);
 
-  const char *format = "%02x ";
+  const char *format = "%02x";
   for (size_t i = 0; i <= es->lastchar; i++)
   {
     if (es->wbuf[i] > 0xff)
     {
-      format = "%04x ";
+      format = "%04x";
       break;
     }
   }
 
   struct Buffer *hex = mutt_buffer_pool_get();
-  mutt_buffer_addstr(hex, "| ");
+  mutt_buffer_addstr(hex, "> ");
+  if (es->curpos == 0)
+    mutt_buffer_addstr(hex, "|");
+  else
+    mutt_buffer_addstr(hex, " ");
   for (size_t i = 0; i < es->lastchar; i++)
   {
     mutt_buffer_add_printf(hex, format, es->wbuf[i]);
+    if ((i + 1) == es->curpos)
+      mutt_buffer_addstr(hex, "|");
+    else
+      mutt_buffer_addstr(hex, " ");
   }
-  mutt_buffer_addstr(hex, "| ");
+  mutt_buffer_addstr(hex, "< ");
   mutt_buffer_add_printf(hex, format, es->wbuf[es->lastchar]);
-  enter_debug(LL_DEBUG1, "%s|\n", mutt_buffer_string(hex));
+  enter_debug(LL_DEBUG1, "%s$\n", mutt_buffer_string(hex));
 
   mutt_buffer_pool_release(&hex);
 }
