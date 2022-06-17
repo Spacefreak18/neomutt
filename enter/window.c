@@ -115,8 +115,7 @@ static int enter_window_recalc(struct MuttWindow *win)
   // {
   //   /* Initialise wbuf from buf */
   //   wdata->state->wbuflen = 0;
-  //   wdata->state->lastchar = mutt_mb_mbstowcs(&wdata->state->wbuf,
-  //                                             &wdata->state->wbuflen, 0, wdata->buf);
+  //   wdata->state->lastchar = mutt_mb_mbstowcs(&wdata->state->wbuf, &wdata->state->wbuflen, 0, wdata->buf);
   //   wdata->redraw = ENTER_REDRAW_INIT;
   // }
   win->actions |= WA_REPAINT;
@@ -269,7 +268,7 @@ int mutt_buffer_get_field(const char *field, struct Buffer *buf, CompletionFlags
   struct EnterState *state = enter_state_new();
 
   // clang-format off
-  struct EnterWindowData wdata = { buf->data, buf->dsize, col, complete,
+  struct EnterWindowData wdata = { buf, col, complete,
     multiple, m, files, numfiles, state, field, NULL, ENTER_REDRAW_NONE,
     (complete & MUTT_COMP_PASS), 0, NULL, 0, 0, 0, false };
   // clang-format on
